@@ -1,5 +1,7 @@
 package com.wwwcg.kuikly.widgetgrid.demo
 
+import cn.com.hzb.mobilebank.per.kuikly.views.AccountCard
+import cn.com.hzb.mobilebank.per.kuikly.views.ExpensesCard
 import com.tencent.kuikly.core.annotations.Page
 import com.tencent.kuikly.core.base.Color
 import com.tencent.kuikly.core.base.ViewBuilder
@@ -19,13 +21,24 @@ import com.wwwcg.kuikly.widgetgrid.WidgetGridView
 import com.wwwcg.kuikly.widgetgrid.base.BasePager
 
 // ==================== 业务自定义卡片数据 ====================
-
 /**
- * 继承 WidgetGridItemData，添加业务需要的自定义属性
+ * 账户明细
  */
-class DemoCardData(scope: PagerScope) : WidgetGridItemData(scope) {
-    var title: String by observable("")
-    var iconColor: Color by observable(Color.BLUE)
+class AccountCardData(scope: PagerScope) : WidgetGridItemData(scope){
+    init {
+        spanX = 2
+        id = 1
+    }
+}
+/**
+ * 收支卡片
+ */
+class ExpensesCardData(scope: PagerScope) : WidgetGridItemData(scope)
+{
+    init {
+        spanX = 2
+        id = 2
+    }
 }
 
 // ==================== Demo 页面 ====================
@@ -43,11 +56,16 @@ internal class WidgetGridDemoPage : BasePager() {
     private var nextId = 11
 
     // 网格配置
-    private val gridConfig = WidgetGridConfig(
-        columnCount = 3,
-        cardHeight = 100f,
-        cardSpacing = 20f,
-        resizeEnabled = true,
+    private var gridConfig = WidgetGridConfig(
+        dragOpacity = 1.0f,
+        shakeInterval = 100,
+        columnCount = 2,
+        cardSpacing = 15f,
+        shakeAngleBase = 5f,
+        dragScaleRatio = 1.0f,
+        deleteButtonOffset = -15f,
+        deleteButtonSize = 48f,
+        dragAnimationDuration = 0.18f
     )
 
     private val horizontalPadding = 16f
@@ -144,6 +162,7 @@ internal class WidgetGridDemoPage : BasePager() {
                 }
 
                 // WidgetGrid 组件
+                ctx.gridConfig = ctx.gridConfig.copy(cardHeight = 0.66f*(ctx.pagerData.pageViewWidth - ctx.horizontalPadding * 2))
                 WidgetGrid {
                     ref {
                         ctx.gridRef = it
@@ -156,42 +175,21 @@ internal class WidgetGridDemoPage : BasePager() {
 
                         // 自定义卡片内容
                         cardContent { item ->
-                            val cardData = item as DemoCardData
-                            View {
-                                attr {
-                                    flex(1f)
-                                    padding(12f)
-                                }
+                            when (item) {
+                                is AccountCardData -> {
+                                    // 渲染账户卡片布局
+                                    AccountCard {
 
-                                // 图标
-                                View {
-                                    attr {
-                                        size(40f, 40f)
-                                        backgroundColor(cardData.iconColor)
-                                        borderRadius(10f)
-                                        marginBottom(8f)
                                     }
                                 }
 
-                                // 标题
-                                Text {
-                                    attr {
-                                        text(cardData.title)
-                                        fontSize(14f)
-                                        fontWeightMedium()
-                                        color(Color.WHITE)
+                                is ExpensesCardData -> {
+                                    // 渲染收支卡片布局
+                                    ExpensesCard {
+
                                     }
                                 }
 
-                                // 尺寸标签
-                                Text {
-                                    attr {
-                                        marginTop(4f)
-                                        text(if (cardData.spanX == 2) "2×1" else "1×1")
-                                        fontSize(12f)
-                                        color(Color(0xFF8E8E93L))
-                                    }
-                                }
                             }
                         }
                     }
@@ -210,96 +208,21 @@ internal class WidgetGridDemoPage : BasePager() {
                             // 非编辑态点击卡片的业务逻辑（如跳转详情页）
                             KLog.d("WidgetGridDemoPage", "onCardClick: ${item.id}")
                         }
-                        onResize { item, oldSpanX, newSpanX ->
-                            // 尺寸切换后更新卡片内容（如 1x1 → 2x1 显示更多信息）
-                            KLog.d("WidgetGridDemoPage", "onResize: ${item.id}, oldSpanX: $oldSpanX, newSpanX: $newSpanX")
-                            val card = item as DemoCardData
-                            card.title = if (newSpanX == 2) "${card.title} ⬛" else card.title.removeSuffix(" ⬛")
-                        }
+
                     }
                 }
             }
 
-            // 底部添加按钮
-            vif({ ctx.isEditing }) {
-                View {
-                    attr {
-                        absolutePosition(bottom = 40f + ctx.pagerData.safeAreaInsets.bottom)
-                        alignSelfCenter()
-                        flexDirectionRow()
-                        alignItemsCenter()
-                        paddingLeft(20f)
-                        paddingRight(20f)
-                        paddingTop(12f)
-                        paddingBottom(12f)
-                        backgroundColor(Color(0xFF0A84FFL))
-                        borderRadius(24f)
-                    }
-                    event {
-                        click {
-                            ctx.addNewCard()
-                        }
-                    }
-                    Text {
-                        attr {
-                            text("+ 添加小组件")
-                            fontSize(16f)
-                            fontWeightMedium()
-                            color(Color.WHITE)
-                        }
-                    }
-                }
-            }
         }
     }
 
     override fun viewDidLoad() {
         super.viewDidLoad()
-
-        // 初始化测试数据
-        val testData = listOf(
-            Triple(1, 1, "天气"),
-            Triple(2, 2, "日历"),
-            Triple(3, 1, "时钟"),
-            Triple(4, 1, "备忘录"),
-            Triple(5, 2, "音乐"),
-            Triple(6, 1, "健康"),
-            Triple(7, 1, "相册"),
-            Triple(8, 1, "快捷指令"),
-            Triple(9, 2, "屏幕使用时间"),
-            Triple(10, 1, "电池"),
-        )
-
-        val items = testData.map { (id, span, title) ->
-            DemoCardData(this).apply {
-                this.id = id
-                this.spanX = span
-                this.title = title
-                this.iconColor = Color(
-                    (100..255).random(),
-                    (100..255).random(),
-                    (100..255).random(),
-                    1.0f
-                )
-            }
-        }
-
+        val items = mutableListOf<WidgetGridItemData>()
+        items.add(AccountCardData(this))
+        items.add(ExpensesCardData(this))
         gridRef.view?.addItems(items)
     }
 
-    private fun addNewCard() {
-        val newId = nextId++
-        val spanX = if (newId % 3 == 0) 2 else 1
-        gridRef.view?.addItem(DemoCardData(this).apply {
-            id = newId
-            this.spanX = spanX
-            title = "新组件 $newId"
-            iconColor = Color(
-                (100..255).random(),
-                (100..255).random(),
-                (100..255).random(),
-                1.0f
-            )
-        })
-    }
+
 }
