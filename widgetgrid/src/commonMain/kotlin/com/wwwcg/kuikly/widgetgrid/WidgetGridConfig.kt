@@ -1,4 +1,4 @@
-package com.wwwcg.kuikly.widgetgrid
+package com.wwwcg.kuikly.widgetgrid.demo
 
 import com.tencent.kuikly.core.base.Color
 
@@ -22,10 +22,6 @@ import com.tencent.kuikly.core.base.Color
  * @property deleteButtonSize 删除按钮尺寸（dp），默认 24
  * @property deleteButtonOffset 删除按钮相对卡片左上角的偏移（dp），负值表示向外延伸，默认 -8
  * @property deleteButtonColor 删除按钮背景色
- * @property resizeEnabled 是否在编辑态显示右上角尺寸切换按钮，默认 false
- * @property resizeButtonSize 切换按钮尺寸（dp），默认 24
- * @property resizeButtonOffset 切换按钮相对卡片右上角的偏移（dp），负值表示向外延伸，默认 -8
- * @property resizeButtonColor 切换按钮背景色
  */
 data class WidgetGridConfig(
     val columnCount: Int = 3,
@@ -34,19 +30,16 @@ data class WidgetGridConfig(
     val dragScaleRatio: Float = 1.05f,
     val dragOpacity: Float = 0.9f,
     val dragAnimationDuration: Float = 0.3f,
+    val longPressMoveThreshold: Float = 10f,
     val shakeEnabled: Boolean = true,
     val shakeInterval: Int = 200,
     val shakeAngleBase: Float = 1.2f,
     val shakeAngleOffset: Float = 0.5f,
     val shakeAnimationDuration: Float = 0.2f,
     val longPressDelay: Int = 350,
-    val cardBackgroundColor: Color = Color(0xFF2C2C2EL),
+    val cardBackgroundColor: Color = Color.TRANSPARENT,
     val cardBorderRadius: Float = 16f,
     val deleteButtonSize: Float = 24f,
     val deleteButtonOffset: Float = -8f,
     val deleteButtonColor: Color = Color(0xFFFF3B30L),
-    val resizeEnabled: Boolean = false,
-    val resizeButtonSize: Float = 24f,
-    val resizeButtonOffset: Float = -8f,
-    val resizeButtonColor: Color = Color(0xFF007AFFL),
 )

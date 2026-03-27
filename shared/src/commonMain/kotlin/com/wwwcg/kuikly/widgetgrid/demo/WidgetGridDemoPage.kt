@@ -14,10 +14,8 @@ import com.tencent.kuikly.core.views.View
 import com.tencent.kuikly.core.directives.vif
 import com.tencent.kuikly.core.base.PagerScope
 import com.tencent.kuikly.core.log.KLog
-import com.wwwcg.kuikly.widgetgrid.WidgetGrid
-import com.wwwcg.kuikly.widgetgrid.WidgetGridConfig
-import com.wwwcg.kuikly.widgetgrid.WidgetGridItemData
-import com.wwwcg.kuikly.widgetgrid.WidgetGridView
+import com.tencent.kuikly.core.views.ScrollerView
+
 import com.wwwcg.kuikly.widgetgrid.base.BasePager
 
 // ==================== 业务自定义卡片数据 ====================
@@ -51,6 +49,7 @@ internal class WidgetGridDemoPage : BasePager() {
 
     // WidgetGrid 引用
     lateinit var gridRef: ViewRef<WidgetGridView>
+    lateinit var scrollerRef: ViewRef<ScrollerView<*, *>>
 
     // 用于生成新卡片 id
     private var nextId = 11
@@ -76,7 +75,6 @@ internal class WidgetGridDemoPage : BasePager() {
             attr {
                 backgroundColor(Color(0xFF1C1C1EL))
             }
-
             // 顶部导航栏
             View {
                 attr {
@@ -160,7 +158,18 @@ internal class WidgetGridDemoPage : BasePager() {
                     paddingTop(16f)
                     paddingBottom(100f)
                 }
-
+                ref { ctx.scrollerRef = it }
+                event{
+                    register("longPress") {
+                        KLog.d(
+                            "WidgetGridDemoPage",
+                            "Scroller 检测到长按！"
+                        )
+                        if (!ctx.isEditing) {
+                            ctx.isEditing = true
+                        }
+                    }
+                }
                 // WidgetGrid 组件
                 ctx.gridConfig = ctx.gridConfig.copy(cardHeight = 0.66f*(ctx.pagerData.pageViewWidth - ctx.horizontalPadding * 2))
                 WidgetGrid {
@@ -204,9 +213,8 @@ internal class WidgetGridDemoPage : BasePager() {
                         onDelete { item ->
                             // 可在此处理删除后的业务逻辑
                         }
-                        onCardClick { item ->
-                            // 非编辑态点击卡片的业务逻辑（如跳转详情页）
-                            KLog.d("WidgetGridDemoPage", "onCardClick: ${item.id}")
+                        onDragStateChanged { dragging ->
+                            ctx.scrollerRef.view?.getViewAttr()?.scrollEnable(!dragging)
                         }
 
                     }

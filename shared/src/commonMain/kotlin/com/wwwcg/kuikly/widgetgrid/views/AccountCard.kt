@@ -82,26 +82,7 @@ internal class AccountCardView: ComposeView<AccountCardViewAttr, AccountCardView
                                 }
                             }
                         }
-                        Text {
-                            attr{
-                                text("25,865.40")
-                                marginLeft(20f)
-                                marginTop(4f)
-                                fontSize(30f)
-                                color(Color.WHITE)
-                            }
-                        }
-                                    Text {
-                                        attr {
-                                            text("3713 **** **** 1986")
-                                            fontSize(14f)
-                                            color(Color.WHITE)
-                                            positionAbsolute()
-                                            bottom(40f)
-                                            left(20f)
-                                        }
-                                    }
-                                }
+                    }
                 }
             }
         }

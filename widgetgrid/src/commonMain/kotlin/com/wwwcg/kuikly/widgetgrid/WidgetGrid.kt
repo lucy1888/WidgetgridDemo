@@ -1,7 +1,6 @@
-package com.wwwcg.kuikly.widgetgrid
+package com.wwwcg.kuikly.widgetgrid.demo
 
 import com.tencent.kuikly.core.base.Animation
-import com.tencent.kuikly.core.base.BaseObject
 import com.tencent.kuikly.core.base.Color
 import com.tencent.kuikly.core.base.ComposeAttr
 import com.tencent.kuikly.core.base.ComposeEvent
@@ -13,6 +12,7 @@ import com.tencent.kuikly.core.base.ViewBuilder
 import com.tencent.kuikly.core.base.ViewContainer
 import com.tencent.kuikly.core.base.event.EventName
 import com.tencent.kuikly.core.base.event.PanGestureParams
+import com.tencent.kuikly.core.directives.vbind
 import com.tencent.kuikly.core.directives.vforIndex
 import com.tencent.kuikly.core.directives.vif
 import com.tencent.kuikly.core.log.KLog
@@ -21,331 +21,208 @@ import com.tencent.kuikly.core.reactive.handler.observableList
 import com.tencent.kuikly.core.timer.CallbackRef
 import com.tencent.kuikly.core.timer.clearTimeout
 import com.tencent.kuikly.core.timer.setTimeout
+import com.tencent.kuikly.core.views.Image
 import com.tencent.kuikly.core.views.Text
 import com.tencent.kuikly.core.views.View
 import kotlin.math.max
 
-// ==================== 内部位置数据 ====================
-
-internal data class GridPosition(
+data class GridPosition(
     val x: Float,
     val y: Float,
     val row: Int,
     val col: Int,
 )
 
-// ==================== WidgetGridAttr ====================
-
-/**
- * WidgetGrid 组件的属性
- */
 class WidgetGridAttr : ComposeAttr() {
-
-    /** 网格配置 */
     var config: WidgetGridConfig = WidgetGridConfig()
-
-    /** 是否处于编辑模式（外部控制） */
     var editing: Boolean by observable(false)
-
-    /** 网格可用宽度（dp），通常为 pageViewWidth - 左右边距 */
     var gridWidth: Float = 0f
-
-    /** 卡片内容构建器，业务方在此渲染每个卡片的内容 */
     internal var _cardContentBuilder: (ViewContainer<*, *>.(WidgetGridItemData) -> Unit)? = null
 
-    /** 删除按钮自定义构建器，替换默认的删除按钮样式 */
-    internal var _deleteButtonBuilder: (ViewContainer<*, *>.(WidgetGridItemData) -> Unit)? = null
-
-    /** 尺寸切换按钮自定义构建器，替换默认的 resize 按钮样式 */
-    internal var _resizeButtonBuilder: (ViewContainer<*, *>.(WidgetGridItemData) -> Unit)? = null
-
-    /**
-     * 设置卡片内容构建器
-     *
-     * 示例：
-     * ```
-     * cardContent { item ->
-     *     val myItem = item as MyCardData
-     *     View {
-     *         attr { flex(1f); padding(12f) }
-     *         Text { attr { text(myItem.title) } }
-     *     }
-     * }
-     * ```
-     */
     fun cardContent(builder: ViewContainer<*, *>.(WidgetGridItemData) -> Unit) {
         _cardContentBuilder = builder
     }
-
-    /**
-     * 自定义删除按钮内容（替换默认的红色圆形按钮）
-     *
-     * 注意：仅替换按钮内部内容，外层容器的定位和点击事件由组件管理。
-     * 如需调整按钮尺寸和偏移，请通过 [WidgetGridConfig.deleteButtonSize] 和
-     * [WidgetGridConfig.deleteButtonOffset] 配置。
-     *
-     * 示例：
-     * ```
-     * deleteButtonContent { item ->
-     *     Image { attr { src("delete_icon.png"); size(20f, 20f) } }
-     * }
-     * ```
-     */
-    fun deleteButtonContent(builder: ViewContainer<*, *>.(WidgetGridItemData) -> Unit) {
-        _deleteButtonBuilder = builder
-    }
-
-    /**
-     * 自定义尺寸切换按钮内容（替换默认的蓝色圆形按钮）
-     *
-     * 注意：仅替换按钮内部内容，外层容器的定位和点击事件由组件管理。
-     * 如需调整按钮尺寸和偏移，请通过 [WidgetGridConfig.resizeButtonSize] 和
-     * [WidgetGridConfig.resizeButtonOffset] 配置。
-     *
-     * 示例：
-     * ```
-     * resizeButtonContent { item ->
-     *     Image { attr { src("resize_icon.png"); size(20f, 20f) } }
-     * }
-     * ```
-     */
-    fun resizeButtonContent(builder: ViewContainer<*, *>.(WidgetGridItemData) -> Unit) {
-        _resizeButtonBuilder = builder
-    }
 }
 
-// ==================== WidgetGridEvent ====================
-
-/**
- * WidgetGrid 组件的事件
- */
 class WidgetGridEvent : ComposeEvent() {
-
     private var _onEditingChanged: ((Boolean) -> Unit)? = null
     private var _onReorder: ((fromIndex: Int, toIndex: Int) -> Unit)? = null
     private var _onDelete: ((WidgetGridItemData) -> Unit)? = null
-    private var _onCardClick: ((WidgetGridItemData) -> Unit)? = null
-    private var _onResize: ((item: WidgetGridItemData, oldSpanX: Int, newSpanX: Int) -> Unit)? = null
+    private var _onDragStateChanged: ((Boolean) -> Unit)? = null
+    fun onDragStateChanged(handler: (Boolean) -> Unit) { _onDragStateChanged = handler }
+    internal fun fireDragStateChanged(isDragging: Boolean) { _onDragStateChanged?.invoke(isDragging) }
 
-    /** 编辑状态变化（如长按触发编辑态） */
-    fun onEditingChanged(handler: (Boolean) -> Unit) {
-        _onEditingChanged = handler
-    }
+    fun onEditingChanged(handler: (Boolean) -> Unit) { _onEditingChanged = handler }
+    fun onReorder(handler: (fromIndex: Int, toIndex: Int) -> Unit) { _onReorder = handler }
+    fun onDelete(handler: (WidgetGridItemData) -> Unit) { _onDelete = handler }
 
-    /** 卡片重新排序完成 */
-    fun onReorder(handler: (fromIndex: Int, toIndex: Int) -> Unit) {
-        _onReorder = handler
-    }
-
-    /** 卡片被删除 */
-    fun onDelete(handler: (WidgetGridItemData) -> Unit) {
-        _onDelete = handler
-    }
-
-    /**
-     * 卡片被点击（非拖拽、非长按触发）
-     *
-     * 编辑态和非编辑态下均会触发。
-     */
-    fun onCardClick(handler: (WidgetGridItemData) -> Unit) {
-        _onCardClick = handler
-    }
-
-    /**
-     * 卡片尺寸切换（编辑态点击右上角切换按钮触发）
-     *
-     * 可在回调中根据 newSpanX 更新卡片业务数据。
-     *
-     * @param handler 回调参数：item（卡片数据）、oldSpanX（旧尺寸）、newSpanX（新尺寸）
-     */
-    fun onResize(handler: (item: WidgetGridItemData, oldSpanX: Int, newSpanX: Int) -> Unit) {
-        _onResize = handler
-    }
-
-    internal fun fireEditingChanged(editing: Boolean) {
-        _onEditingChanged?.invoke(editing)
-    }
-
-    internal fun fireReorder(from: Int, to: Int) {
-        _onReorder?.invoke(from, to)
-    }
-
-    internal fun fireDelete(item: WidgetGridItemData) {
-        _onDelete?.invoke(item)
-    }
-
-    internal fun fireCardClick(item: WidgetGridItemData) {
-        _onCardClick?.invoke(item)
-    }
-
-    internal fun fireResize(item: WidgetGridItemData, oldSpanX: Int, newSpanX: Int) {
-        _onResize?.invoke(item, oldSpanX, newSpanX)
-    }
+    internal fun fireEditingChanged(editing: Boolean) { _onEditingChanged?.invoke(editing) }
+    internal fun fireReorder(from: Int, to: Int) { _onReorder?.invoke(from, to) }
+    internal fun fireDelete(item: WidgetGridItemData) { _onDelete?.invoke(item) }
 }
 
-// ==================== WidgetGridView ====================
-
-/**
- * 类似 iPhone 负一屏的卡片式拖动排序组件
- *
- * 功能：
- * - 支持 1x1 和 2x1 两种卡片尺寸
- * - 网格布局可配置（列数、间距、高度等）
- * - 拖拽排序，带"推挤"其他卡片自动让位效果
- * - 2x1 卡片目标位置放不下时自动换行
- * - 长按进入编辑态（抖动效果）
- * - 编辑态下删除卡片
- * - 卡片内容由业务方自定义
- * - 删除按钮和尺寸切换按钮支持自定义内容
- *
- * 使用方式：
- * ```
- * WidgetGrid {
- *     ref { gridRef = it }
- *     attr {
- *         config = WidgetGridConfig(columnCount = 3, cardHeight = 100f)
- *         gridWidth = pagerData.pageViewWidth - 32f
- *         editing = myEditingState
- *         cardContent { item ->
- *             // 自定义卡片内容
- *         }
- *     }
- *     event {
- *         onEditingChanged { editing -> myEditingState = editing }
- *         onReorder { from, to -> }
- *         onDelete { item -> }
- *     }
- * }
- *
- * // 在 viewDidLoad 中添加卡片
- * gridRef.view?.addItem(MyCardData(this).apply { id = 1; spanX = 1 })
- * ```
- */
 class WidgetGridView : ComposeView<WidgetGridAttr, WidgetGridEvent>() {
 
     companion object {
         private const val TAG = "WidgetGrid"
     }
 
-    // ==================== 内部数据列表 ====================
-
     internal var cardList by observableList<WidgetGridItemData>()
-
-    // ==================== 拖拽状态（非响应式） ====================
+    internal var visualOrder by observable<List<Int>>(emptyList())
 
     private var isDragging = false
     private var dragCardData: WidgetGridItemData? = null
     private var dragStartX = 0f
     private var dragStartY = 0f
-    private var lastTargetIndex = -1
+    private var lastTargetVisualIndex = -1
+    // 长按相关
+    private var longPressTimer: CallbackRef? = null
+    private val longPressDelay = 500 // ms
+    private val longPressMoveThreshold = 10f // px
 
-    // ==================== 抖动动画状态 ====================
+    // ❌ 删除了全局 pos 变量: private var pos by observable(...)
 
     private var shakeTimerRef: CallbackRef? = null
+    private var resumeShakeTimerRef: CallbackRef? = null
     private var shakeDirection = 1
-
-    // ==================== 编辑态追踪 ====================
-
+    private var dragStartLogicalPos: GridPosition = GridPosition(0f, 0f, 0, 0)
+    private var dragStartVisualIndex: Int = -1
     private var lastEditingState = false
 
-    // ==================== 公开 API ====================
+    internal fun recalculateAllPositions() {
+        var currentRow = 0
+        var currentCol = 0
 
-    /** 添加单个卡片 */
+        visualOrder.forEachIndexed { visualIndex, originalIndex ->
+            if (originalIndex >= cardList.size) return@forEachIndexed
+            val card = cardList[originalIndex]
+            val spanX = card.spanX
+
+            // 1. 换行逻辑判断
+            if (currentCol + spanX > config.columnCount) {
+                currentRow++
+                currentCol = 0
+            }
+
+            // 2. 计算当前卡片的网格坐标
+            val row = currentRow
+            val col = currentCol
+
+            // 3. 计算像素坐标
+            val x = col * (getCardWidth() + config.cardSpacing)
+            val y = row * (config.cardHeight + config.cardSpacing)
+
+            val newPos = GridPosition(x, y, row, col)
+
+            // 4. 更新卡片状态
+            // 只有当位置真正变化时才标记，减少不必要的重绘触发（虽然 observable 会自动处理，但日志更清晰）
+            if (card.pos != newPos) {
+                KLog.d(TAG, "Recalc Pos: Card(${card.id}) [VisIdx=$visualIndex] -> Row=$row, Col=$col, Pos=($x, $y)")
+                card.pos = newPos
+            }
+
+            // 【关键】无论 pos 是否变化，只要执行了全量重算，必须清零 offset
+            // 防止之前拖拽或动画残留的 offset 导致位置偏移
+            if (card.offsetX != 0f || card.offsetY != 0f) {
+                card.offsetX = 0f
+                card.offsetY = 0f
+            }
+
+            // 更新 layoutVersion 触发 UI 刷新 (如果 pos 变了，observable 会触发；如果只清了 offset，需要手动触发或依赖 offset 的 observable)
+            // 由于 offsetX/Y 也是 observable 的，上面赋值会自动触发 UI 更新，无需手动调 layoutVersion
+            // 但为了保险起见，如果 pos 没变但 offset 清了，也可以显式触发一次（可选）
+            if (card.pos == newPos && (card.offsetX != 0f || card.offsetY != 0f)) {
+                // offset 变化本身是 observable 的，通常不需要额外操作
+            }
+
+            // 5. 移动光标到下一格
+            currentCol += spanX
+            if (currentCol >= config.columnCount) {
+                currentRow++
+                currentCol = 0
+            }
+        }
+    }
+
+    // ==================== 公开 API 简化 ====================
+
     fun addItem(item: WidgetGridItemData) {
+        val originalIndex = cardList.size
         cardList.add(item)
+
+        // 更新视觉顺序：新卡片默认追加到末尾
+        val newOrder = if (visualOrder.isEmpty()) listOf(originalIndex) else visualOrder + originalIndex
+        visualOrder = newOrder
+
+        // 【优化】一键重算所有位置
+        recalculateAllPositions()
+
+        KLog.d(TAG, "addItem: id=${item.id}, total=${cardList.size}")
     }
 
-    /** 批量添加卡片 */
     fun addItems(items: List<WidgetGridItemData>) {
+        if (items.isEmpty()) return
+        val startOriginalIndex = cardList.size
         cardList.addAll(items)
+
+        // 生成新卡片的原始索引列表
+        val newOriginalIndices = (startOriginalIndex until cardList.size).toList()
+
+        // 更新视觉顺序
+        val newOrder = if (visualOrder.isEmpty()) newOriginalIndices else visualOrder + newOriginalIndices
+        visualOrder = newOrder
+
+        // 【优化】一键重算所有位置
+        recalculateAllPositions()
+
+        KLog.d(TAG, "addItems: count=${items.size}, total=${cardList.size}")
     }
 
-    /** 根据 id 移除卡片（带动画） */
     fun removeItem(id: Int) {
         val item = cardList.find { it.id == id } ?: return
-        deleteCard(item)
+        val originalIndex = cardList.indexOf(item)
+
+        // 1. 先从数据源移除 (注意：这会导致后面元素的索引前移)
+        cardList.remove(item)
+
+        // 2. 更新视觉顺序：
+        // A. 首先移除被删除的那个索引
+        val newVisualOrder = visualOrder.toMutableList().apply {
+            removeAll { it == originalIndex }
+        }
+
+        // B. 【关键修复】修正剩余索引：所有大于 originalIndex 的索引都需要减 1
+        // 因为 cardList 中该位置之后的元素都向前挪了一位
+        val correctedVisualOrder = newVisualOrder.map { idx ->
+            if (idx > originalIndex) idx - 1 else idx
+        }
+
+        // 3. 应用修正后的视觉顺序
+        visualOrder = correctedVisualOrder
+
+        // 5. 重算位置
+        recalculateAllPositions()
+
+        // 6. 处理动画状态
+        stopShakeAnimation()
+        if (lastEditingState && config.shakeEnabled) {
+            setTimeout(300) { startShakeAnimation() }
+        }
+
+        KLog.d(TAG, "removeItem: id=$id, remaining=${cardList.size}, visualOrder=$visualOrder")
     }
 
-    /** 获取当前卡片列表的副本 */
-    fun getItems(): List<WidgetGridItemData> = cardList.toList()
+    fun getItems(): List<WidgetGridItemData> {
+        return visualOrder.filter { it < cardList.size } // 先过滤掉无效索引
+            .map { cardList[it] }                        // 再安全获取
+    }
 
-    /**
-     * 设置编辑状态
-     * 也可通过 attr.editing 从外部响应式控制
-     */
     fun setEditing(editing: Boolean) {
         setEditingInternal(editing)
         event.fireEditingChanged(editing)
     }
 
-    /**
-     * 切换卡片尺寸（带平滑动画）
-     *
-     * 修改 [item] 的 [WidgetGridItemData.spanX]，并对受影响的卡片执行位移动画过渡。
-     *
-     * 示例：点击 1×1 切换为 2×1
-     * ```
-     * gridRef.view?.resizeCard(item, if (item.spanX == 1) 2 else 1)
-     * ```
-     *
-     * @param item 要调整尺寸的卡片
-     * @param newSpanX 新的横向占位格数
-     */
-    fun resizeCard(item: WidgetGridItemData, newSpanX: Int) {
-        val oldSpanX = item.spanX
-        if (oldSpanX == newSpanX) return
-        val index = cardList.indexOf(item)
-        if (index < 0) return
-
-        // Android 平台：直接更新，不使用位置动画（避免动画冲突）
-        if (pagerData.isAndroid) {
-            item.spanX = newSpanX
-            event.fireResize(item, oldSpanX, newSpanX)
-            return
-        }
-
-        // 其他平台：保存旧位置，更新后用 offset 动画平滑过渡
-        val oldPositions = cardList.mapIndexed { i, card ->
-            card to calculateCardPosition(i)
-        }.toMap()
-
-        item.spanX = newSpanX
-        event.fireResize(item, oldSpanX, newSpanX)
-
-        cardList.forEachIndexed { newIndex, card ->
-            val oldPos = oldPositions[card] ?: return@forEachIndexed
-            val newPos = calculateCardPosition(newIndex)
-
-            card.offsetX = oldPos.x - newPos.x
-            card.offsetY = oldPos.y - newPos.y
-            card.needsAnimation = true
-            card.animationKey++
-        }
-
-        setTimeout(16) {
-            cardList.forEach { card ->
-                card.offsetX = 0f
-                card.offsetY = 0f
-            }
-
-            setTimeout((config.dragAnimationDuration * 1000).toInt() + 50) {
-                cardList.forEach { card ->
-                    card.needsAnimation = false
-                }
-            }
-        }
-    }
-
-    // ==================== 配置快捷访问 ====================
-
     private val config: WidgetGridConfig get() = attr.config
-
-    /** 删除按钮向左溢出的距离 */
-    private val leftOverflow: Float get() = max(0f, -config.deleteButtonOffset)
-    /** 缩放按钮向右溢出的距离 */
-    private val rightOverflow: Float get() = if (config.resizeEnabled) max(0f, -config.resizeButtonOffset) else 0f
-    /** 按钮向上溢出的距离 */
-    private val topOverflow: Float get() = max(leftOverflow, rightOverflow)
 
     private fun getCardWidth(): Float {
         return (attr.gridWidth - config.cardSpacing * (config.columnCount - 1)) / config.columnCount
@@ -354,345 +231,364 @@ class WidgetGridView : ComposeView<WidgetGridAttr, WidgetGridEvent>() {
     private fun getItemWidth(item: WidgetGridItemData): Float {
         return if (item.spanX == 2) getCardWidth() * 2 + config.cardSpacing else getCardWidth()
     }
+    private fun updateAllPositionsBase() {
+        cardList.forEach { card ->
+            val originalIdx = cardList.indexOf(card)
+            val visIdx = visualOrder.indexOf(originalIdx)
+            if (visIdx == -1) return@forEach
 
-    // ==================== 布局计算 ====================
+            val newPos = calculatePositionByVisualIndex(visualOrder, visIdx)
 
-    private fun calculateCardPosition(index: Int): GridPosition {
-        if (index < 0 || index >= cardList.size) {
-            return GridPosition(0f, 0f, 0, 0)
+            // 只有 pos 变化才更新，避免不必要的 observable 通知，但这里必须更新以反映新布局
+            if (card.pos != newPos) {
+                card.pos = newPos
+                card.layoutVersion++
+            }
+            // 注意：这里不再执行 card.offsetX = 0f !!!
         }
-
+    }
+    // ✅ 核心计算函数：只负责计算，不负责副作用
+    private fun calculatePositionByVisualIndex(order: List<Int>, visualIndex: Int): GridPosition {
+        if (visualIndex < 0 || visualIndex >= order.size) return GridPosition(0f, 0f, 0, 0)
         var currentRow = 0
         var currentCol = 0
-
-        for (i in 0 until index) {
-            if (i >= cardList.size) break
-            val card = cardList[i]
-            val spanX = card.spanX
-
-            if (currentCol + spanX > config.columnCount) {
-                currentRow++
-                currentCol = 0
-            }
-
-            currentCol += spanX
-            if (currentCol >= config.columnCount) {
-                currentRow++
-                currentCol = 0
+        for (i in 0 until visualIndex) {
+            val originalIdx = order[i]
+            if (originalIdx >= cardList.size) continue
+            val card = cardList[originalIdx]
+            if (currentCol + card.spanX > config.columnCount) { currentRow++; currentCol = 0 }
+            currentCol += card.spanX
+            if (currentCol >= config.columnCount) { currentRow++; currentCol = 0 }
+        }
+        if (visualIndex < order.size) {
+            val originalIdx = order[visualIndex]
+            if (originalIdx < cardList.size) {
+                val card = cardList[originalIdx]
+                if (currentCol + card.spanX > config.columnCount) { currentRow++; currentCol = 0 }
             }
         }
+        return GridPosition(
+            currentCol * (getCardWidth() + config.cardSpacing),
+            currentRow * (config.cardHeight + config.cardSpacing),
+            currentRow, currentCol
+        )
+    }
 
-        val currentCard = cardList.getOrNull(index) ?: return GridPosition(0f, 0f, currentRow, currentCol)
-        if (currentCol + currentCard.spanX > config.columnCount) {
-            currentRow++
-            currentCol = 0
+    // ✅ 新增：批量更新所有卡片的位置到它们各自的 pos 属性中
+    // ✅ 修正版：批量更新所有卡片的位置，并强制清零 offset
+    private fun updateAllPositions() {
+        cardList.forEach { card ->
+            val originalIdx = cardList.indexOf(card)
+            val visIdx = visualOrder.indexOf(originalIdx)
+
+            if (visIdx == -1) return@forEach
+
+            // 1. 计算新的逻辑位置 (使用您代码中现有的函数名)
+            val newPos = calculatePositionByVisualIndex(visualOrder, visIdx)
+
+            // 2. 只有当位置确实发生变化时才更新 (避免不必要的重绘)
+            if (card.pos != newPos) {
+                KLog.d(TAG, "updateAllPositions: Card(${card.id}) oldPos=${card.pos}, newPos=$newPos, visualOrder=$visualOrder")
+
+                // --- 关键修复开始 ---
+
+                // A. 更新逻辑坐标
+                card.pos = newPos
+
+                // B. 【核心修复】立即清零偏移量！
+                // 之前的问题就在这里：pos 变了，但 offset 还保留着巨大的数值，
+                // 导致 最终渲染位置(pos + offset) 远超父容器高度。
+                card.offsetX = 0f
+                card.offsetY = 0f
+
+                // C. 标记布局版本变化，触发 UI 刷新
+                card.layoutVersion++
+
+                // --- 关键修复结束 ---
+            } else {
+                // 即使 pos 没变，如果是拖拽结束后的重置，也要确保 offset 是 0
+                // 防止某些边缘情况下 offset 残留
+                if (card.offsetX != 0f || card.offsetY != 0f) {
+                    card.offsetX = 0f
+                    card.offsetY = 0f
+                    card.layoutVersion++
+                }
+            }
         }
-
-        val x = currentCol * (getCardWidth() + config.cardSpacing)
-        val y = currentRow * (config.cardHeight + config.cardSpacing)
-
-        return GridPosition(x, y, currentRow, currentCol)
     }
 
     private fun calculateTotalRows(): Int {
-        if (cardList.isEmpty()) return 1
-
-        var currentRow = 0
-        var currentCol = 0
-
-        for (card in cardList) {
-            val spanX = card.spanX
-
-            if (currentCol + spanX > config.columnCount) {
-                currentRow++
-                currentCol = 0
-            }
-
-            currentCol += spanX
-            if (currentCol >= config.columnCount) {
-                currentRow++
-                currentCol = 0
-            }
-        }
-
-        if (currentCol > 0) {
-            currentRow++
-        }
-
-        return max(currentRow, 1)
+        if (visualOrder.isEmpty()) return 1
+        val lastVisIdx = visualOrder.size - 1
+        val lastPos = calculatePositionByVisualIndex(visualOrder, lastVisIdx)
+        return lastPos.row + 1
     }
 
-    private fun calculatePositionInNewOrder(newOrder: List<Int>, positionIndex: Int): GridPosition {
-        var row = 0
-        var col = 0
+    private fun handleDrag(params: PanGestureParams, cardData: WidgetGridItemData, currentVisualIndexFromVfor: Int) {
+        val originalIndex = cardList.indexOf(cardData)
+        val realCurrentVisualIndex = visualOrder.indexOf(originalIndex)
+        if (realCurrentVisualIndex == -1) return
 
-        for (i in 0 until positionIndex) {
-            if (i >= newOrder.size) break
-            val cardIndex = newOrder[i]
-            if (cardIndex >= cardList.size) continue
-
-            val card = cardList[cardIndex]
-            val spanX = card.spanX
-
-            if (col + spanX > config.columnCount) {
-                row++
-                col = 0
-            }
-
-            col += spanX
-            if (col >= config.columnCount) {
-                row++
-                col = 0
-            }
-        }
-
-        if (positionIndex < newOrder.size) {
-            val cardIndex = newOrder[positionIndex]
-            if (cardIndex < cardList.size) {
-                val card = cardList[cardIndex]
-                if (col + card.spanX > config.columnCount) {
-                    row++
-                    col = 0
-                }
-            }
-        }
-
-        val x = col * (getCardWidth() + config.cardSpacing)
-        val y = row * (config.cardHeight + config.cardSpacing)
-
-        return GridPosition(x, y, row, col)
-    }
-
-    // ==================== 拖拽处理 ====================
-
-    private fun handleDrag(params: PanGestureParams, cardData: WidgetGridItemData, index: Int) {
         when (params.state) {
-            "start" -> {
-                startDragging(params, cardData, index)
-            }
+            "start" -> startDragging(params, cardData, realCurrentVisualIndex)
             "move" -> {
-                if (!isDragging) {
-                    startDragging(params, cardData, index)
-                }
+                if (!isDragging) startDragging(params, cardData, realCurrentVisualIndex)
                 if (dragCardData != cardData) return
 
                 val deltaX = params.pageX - dragStartX
                 val deltaY = params.pageY - dragStartY
-
                 cardData.offsetX = deltaX
                 cardData.offsetY = deltaY
 
-                val targetIndex = findTargetIndex(cardData, index, deltaX, deltaY)
-
-                if (targetIndex != lastTargetIndex) {
-                    lastTargetIndex = targetIndex
-                    previewReorder(index, targetIndex, cardData)
-                    KLog.d(TAG, "Target changed: $targetIndex")
+                val targetVisualIndex = findTargetVisualIndex(cardData, realCurrentVisualIndex, deltaX, deltaY)
+                if (targetVisualIndex != lastTargetVisualIndex) {
+                    lastTargetVisualIndex = targetVisualIndex
+                    previewReorder(realCurrentVisualIndex, targetVisualIndex, cardData)
                 }
             }
             "end" -> {
-                if (!isDragging || dragCardData != cardData) return
+                if (!isDragging || dragCardData != cardData) { resetDragState(); return }
 
-                val targetIndex = lastTargetIndex
+                val targetVisualIndex = lastTargetVisualIndex
+                val startVisIdx = dragStartVisualIndex
 
-                val currentIndex = cardList.indexOf(cardData)
-                if (currentIndex < 0) {
-                    KLog.d(TAG, "Drag end: card not found in list")
-                    isDragging = false
-                    dragCardData = null
-                    lastTargetIndex = -1
+                if (startVisIdx < 0 || startVisIdx >= visualOrder.size) {
+                    resetDragState()
                     return
                 }
 
-                KLog.d(TAG, "Drag end: from=$currentIndex, to=$targetIndex")
+                // 1. 停止抖动，避免干扰重排动画
+                stopShakeAnimation()
 
-                if (targetIndex != currentIndex && targetIndex >= 0 && targetIndex < cardList.size) {
-                    val originalList = cardList.toList()
-
-                    val newOrderIndices = originalList.indices.toMutableList()
-                    newOrderIndices.removeAt(currentIndex)
-                    val insertAt = targetIndex.coerceIn(0, newOrderIndices.size)
-                    newOrderIndices.add(insertAt, currentIndex)
-
-                    val reorderedCards = newOrderIndices.map { originalList[it] }
-
-                    cardList.clear()
-                    cardList.addAll(reorderedCards)
-
-                    event.fireReorder(currentIndex, targetIndex)
-
-                    KLog.d(TAG, "Reordered: from=$currentIndex, to=$targetIndex")
+                // 2. 【关键优化】在修改数据前，记录所有卡片当前的“绝对视觉位置”
+                // 这是动画的起点。必须包含 pos + 当前的 offset (拖拽中的偏移)
+                val oldVisualPositions = cardList.associateWith { card ->
+                    GridPosition(
+                        x = card.pos.x + card.offsetX,
+                        y = card.pos.y + card.offsetY,
+                        row = card.pos.row, // row/col 暂时不重要，主要是 x/y
+                        col = card.pos.col
+                    )
                 }
 
-                cardList.forEach { card ->
-                    card.isDragging = false
-                    card.offsetX = 0f
-                    card.offsetY = 0f
-                    card.needsAnimation = false
+                cardList.forEach { c ->
+                    c.isDragging = false
+                    c.shakeAngle = 0f
+                    c.shakeKey++
                 }
 
-                isDragging = false
-                dragCardData = null
-                lastTargetIndex = -1
+                if (targetVisualIndex != startVisIdx && targetVisualIndex in 0 until visualOrder.size) {
+                    // 3. 更新视觉顺序 (数据模型变更)
+                    val newOrder = visualOrder.toMutableList()
+                    val movedOriginalIndex = newOrder.removeAt(startVisIdx)
+                    newOrder.add(targetVisualIndex, movedOriginalIndex)
+                    visualOrder = newOrder
+
+                    // 4. 重新计算所有卡片的基准位置 (pos 变为终点)
+                    // 注意：此时 offset 还是旧的 (拖拽的 deltaX/Y)，或者如果是其他卡片则是预览的 offset
+                    // 我们需要立即重置所有卡片的 offset 为 0 吗？不，我们要利用它们做动画。
+                    // 策略：更新 pos -> 计算 (旧视觉 - 新 pos) -> 设为新 offset -> 归零 offset
+
+                    updateAllPositionsBase() // 只更新 pos，不强制清零 offset (我们需要手动控制)
+
+                    // 5. 应用平滑过渡动画
+                    applySmoothTransition(dragCardData!!, oldVisualPositions)
+
+                    // 6. 触发事件
+                    event.fireReorder(startVisIdx, targetVisualIndex)
+
+                    // 7. 延迟恢复抖动
+                    resumeShakeTimerRef = setTimeout((config.dragAnimationDuration * 1000).toInt() + 100) {
+                        if (lastEditingState && config.shakeEnabled) startShakeAnimation()
+                    }
+                } else {
+                    // 未移动：复位拖拽卡片
+                    // 使用参考代码的回弹逻辑
+                    val currentDragCard = dragCardData
+                    currentDragCard?.apply {
+                        offsetX = 0f
+                        offsetY = 0f
+                        needsAnimation = true
+                        animationKey++
+                    }
+
+                    // 清理定时器防止重复
+                    currentDragCard?.animCleanupTimer?.let { clearTimeout(it) }
+                    currentDragCard?.animCleanupTimer = setTimeout((config.dragAnimationDuration * 1000).toInt() + 50) {
+                        currentDragCard?.needsAnimation = false
+                        if (lastEditingState && config.shakeEnabled) startShakeAnimation()
+                    }
+                }
+
+                resetDragState()
             }
         }
     }
 
-    private fun startDragging(params: PanGestureParams, cardData: WidgetGridItemData, index: Int) {
+    private fun applySmoothTransition(
+        dragCard: WidgetGridItemData,
+        oldVisualPositions: Map<WidgetGridItemData, GridPosition>
+    ) {
+        cardList.forEach { card ->
+            val oldVisualPos = oldVisualPositions[card] ?: return@forEach
+            val newPos = card.pos // 此时已经是新布局下的基准位置
+
+            // 计算需要补偿的偏移量：起点(旧视觉) - 终点(新基准)
+            val startOffsetX = oldVisualPos.x - newPos.x
+            val startOffsetY = oldVisualPos.y - newPos.y
+
+            // 如果差异极小，跳过动画
+            if (kotlin.math.abs(startOffsetX) < 0.1f && kotlin.math.abs(startOffsetY) < 0.1f) {
+                card.offsetX = 0f
+                card.offsetY = 0f
+                card.needsAnimation = false
+                return@forEach
+            }
+
+            // 1. 设置初始偏移 (让卡片视觉上停留在旧位置)
+            card.offsetX = startOffsetX
+            card.offsetY = startOffsetY
+
+            // 2. 标记需要动画
+            card.needsAnimation = true
+            card.animationKey++
+
+            // 3. 清理旧定时器
+            card.animCleanupTimer?.let { clearTimeout(it) }
+
+            // 4. 下一帧归零偏移，触发动画播放
+            // 使用 setTimeout(16) 确保浏览器/引擎已经完成了上一帧的 layout 计算
+            card.animCleanupTimer = setTimeout(16) {
+                if (cardList.contains(card)) {
+                    card.offsetX = 0f
+                    card.offsetY = 0f
+                    // 动画时长后清理标志
+                    val durationMs = (config.dragAnimationDuration * 1000).toInt() + 50
+                    card.animCleanupTimer = setTimeout(durationMs) {
+                        if (cardList.contains(card)) {
+                            card.needsAnimation = false
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun startDragging(params: PanGestureParams, cardData: WidgetGridItemData, visualIndex: Int) {
         isDragging = true
         dragCardData = cardData
         dragStartX = params.pageX
         dragStartY = params.pageY
-        lastTargetIndex = index
+        lastTargetVisualIndex = visualIndex
+        dragStartVisualIndex = visualIndex
+
+        // 记录起始位置（虽然现在存在 cardData.pos 里，但保留这个变量用于调试或逻辑参考）
+        dragStartLogicalPos = cardData.pos
+
         cardData.isDragging = true
         cardData.needsAnimation = false
-        KLog.d(TAG, "Drag start: index=$index, card id=${cardData.id}")
+        cardData.shakeAngle = 0f
+        cardData.shakeKey++
     }
 
-    private fun findTargetIndex(cardData: WidgetGridItemData, currentIndex: Int, deltaX: Float, deltaY: Float): Int {
-        if (cardList.size <= 1) return currentIndex
-
-        val currentPos = calculateCardPosition(currentIndex)
-        val cardW = getItemWidth(cardData)
-
-        val dragCenterX = currentPos.x + deltaX + cardW / 2
-        val dragCenterY = currentPos.y + deltaY + config.cardHeight / 2
-
+    private fun findTargetVisualIndex(cardData: WidgetGridItemData, currentVisualIndex: Int, deltaX: Float, deltaY: Float): Int {
+        if (visualOrder.size <= 1) return currentVisualIndex
+        // 使用 cardData.pos 获取当前位置，或者重新计算（两者此时应一致）
+        val currentPos = cardData.pos
+        val dragW = getItemWidth(cardData)
+        val dragH = config.cardHeight
+        val dragLeft = currentPos.x + deltaX
+        val dragTop = currentPos.y + deltaY
+        val dragRight = dragLeft + dragW
+        val dragBottom = dragTop + dragH
+        val dragArea = dragW * dragH
         val cellWidth = getCardWidth() + config.cardSpacing
         val cellHeight = config.cardHeight + config.cardSpacing
 
+        val tempVisualOrder = visualOrder.filterIndexed { idx, _ -> idx != currentVisualIndex }
         var row = 0
         var col = 0
-        var slotIndex = 0
+        var targetIndex = tempVisualOrder.size
 
-        for (i in cardList.indices) {
-            if (i == currentIndex) continue
-
-            val card = cardList[i]
+        for ((tempVisIdx, originalIdx) in tempVisualOrder.withIndex()) {
+            if (originalIdx >= cardList.size) continue
+            val card = cardList[originalIdx]
             val spanX = card.spanX
+            if (col + spanX > config.columnCount) { row++; col = 0 }
 
-            if (col + spanX > config.columnCount) {
-                row++
-                col = 0
+            val slotW = if (spanX == 2) getCardWidth() * 2 + config.cardSpacing else getCardWidth()
+            val slotH = config.cardHeight
+            val slotLeft = col * cellWidth
+            val slotTop = row * cellHeight
+            val slotRight = slotLeft + slotW
+            val slotBottom = slotTop + slotH
+
+            val intersectLeft = maxOf(dragLeft, slotLeft)
+            val intersectTop = maxOf(dragTop, slotTop)
+            val intersectRight = minOf(dragRight, slotRight)
+            val intersectBottom = minOf(dragBottom, slotBottom)
+
+            var overlapArea = 0f
+            if (intersectRight > intersectLeft && intersectBottom > intersectTop) {
+                overlapArea = (intersectRight - intersectLeft) * (intersectBottom - intersectTop)
             }
 
-            val slotLeftX = col * cellWidth
-            val slotCenterY = row * cellHeight + cellHeight / 2
-
-            if (dragCenterY < slotCenterY - cellHeight * 0.4f) {
-                return slotIndex
-            } else if (dragCenterY < slotCenterY + cellHeight * 0.4f && dragCenterX < slotLeftX + cellWidth * 0.5f) {
-                return slotIndex
-            }
+            if (overlapArea / dragArea > 0.30f) return tempVisIdx
 
             col += spanX
-            if (col >= config.columnCount) {
-                row++
-                col = 0
-            }
-            slotIndex++
+            if (col > config.columnCount) { row++; col = 0 }
         }
-
-        return cardList.size - 1
+        return targetIndex
     }
 
-    private fun previewReorder(fromIndex: Int, toIndex: Int, dragCard: WidgetGridItemData) {
-        if (fromIndex == toIndex) {
-            cardList.forEach { card ->
-                if (card != dragCard && (card.offsetX != 0f || card.offsetY != 0f)) {
-                    card.offsetX = 0f
-                    card.offsetY = 0f
-                    card.needsAnimation = true
-                    card.animationKey++
+    private fun previewReorder(fromVisIdx: Int, toVisIdx: Int, dragCard: WidgetGridItemData) {
+        if (fromVisIdx == toVisIdx) {
+            // 回到原位，清除其他卡片的偏移
+            cardList.forEach { c ->
+                if (c != dragCard && (c.offsetX != 0f || c.offsetY != 0f)) {
+                    c.offsetX = 0f
+                    c.offsetY = 0f
+                    c.needsAnimation = true // ✅ 开启动画，让它滑回去
+                    c.animationKey++
                 }
             }
             return
         }
 
-        val withoutDrag = cardList.indices.filter { it != fromIndex }
-        val newOrder = withoutDrag.toMutableList()
-        val insertAt = toIndex.coerceIn(0, newOrder.size)
-        newOrder.add(insertAt, fromIndex)
+        val tempOrder = visualOrder.toMutableList()
+        val movedItem = tempOrder.removeAt(fromVisIdx)
+        tempOrder.add(toVisIdx, movedItem)
 
-        KLog.d(TAG, "previewReorder: from=$fromIndex, to=$toIndex, newOrder=$newOrder")
+        cardList.forEach { card ->
+            if (card == dragCard) return@forEach
+            val originalIdx = cardList.indexOf(card)
+            val oldVisIdx = visualOrder.indexOf(originalIdx)
+            val newVisIdx = tempOrder.indexOf(originalIdx)
 
-        cardList.forEachIndexed { originalIndex, card ->
-            if (card == dragCard) return@forEachIndexed
+            if (oldVisIdx == -1 || newVisIdx == -1) return@forEach
 
-            val newPositionIndex = newOrder.indexOf(originalIndex)
-            if (newPositionIndex < 0) return@forEachIndexed
+            // 计算旧基准位置 (当前 visualOrder)
+            val oldPos = calculatePositionByVisualIndex(visualOrder, oldVisIdx)
+            // 计算新基准位置 (假设的 tempOrder)
+            val newPos = calculatePositionByVisualIndex(tempOrder, newVisIdx)
 
-            val targetPos = calculatePositionInNewOrder(newOrder, newPositionIndex)
-            val currentPos = calculateCardPosition(originalIndex)
+            val targetOffsetX = newPos.x - oldPos.x
+            val targetOffsetY = newPos.y - oldPos.y
 
-            val newOffsetX = targetPos.x - currentPos.x
-            val newOffsetY = targetPos.y - currentPos.y
+            // 只有当目标偏移量发生变化时才更新，避免死循环
+            if (kotlin.math.abs(card.offsetX - targetOffsetX) > 0.1f ||
+                kotlin.math.abs(card.offsetY - targetOffsetY) > 0.1f) {
 
-            if (card.offsetX != newOffsetX || card.offsetY != newOffsetY) {
-                card.offsetX = newOffsetX
-                card.offsetY = newOffsetY
-                card.needsAnimation = true
+                card.offsetX = targetOffsetX
+                card.offsetY = targetOffsetY
+                card.needsAnimation = true // ✅ 关键：预览时也要开启动画，实现“推挤”效果
                 card.animationKey++
             }
         }
     }
 
-    // ==================== 删除 ====================
-
-    private fun deleteCard(cardData: WidgetGridItemData) {
-        val deleteIndex = cardList.indexOf(cardData)
-        if (deleteIndex < 0) return
-
-        event.fireDelete(cardData)
-
-        // Android 平台：直接删除，不使用位置动画（避免动画冲突问题）
-        if (pagerData.isAndroid) {
-            cardList.forEach { card ->
-                card.offsetX = 0f
-                card.offsetY = 0f
-                card.shakeAngle = 0f
-                card.needsAnimation = false
-            }
-            cardList.remove(cardData)
-            return
-        }
-
-        // iOS 及其他平台：使用位置动画实现平滑过渡
-        val oldPositions = cardList.mapIndexed { index, card ->
-            card to calculateCardPosition(index)
-        }.toMap()
-
-        cardList.remove(cardData)
-
-        cardList.forEachIndexed { newIndex, card ->
-            val oldPos = oldPositions[card] ?: return@forEachIndexed
-            val newPos = calculateCardPosition(newIndex)
-
-            card.offsetX = oldPos.x - newPos.x
-            card.offsetY = oldPos.y - newPos.y
-            card.shakeAngle = 0f
-            // needsAnimation = true 让 attr 块选择弹性动画来过渡位移
-            card.needsAnimation = true
-            card.animationKey++
-        }
-
-        setTimeout(16) {
-            cardList.forEach { card ->
-                card.offsetX = 0f
-                card.offsetY = 0f
-            }
-
-            setTimeout((config.dragAnimationDuration * 1000).toInt() + 50) {
-                cardList.forEach { card ->
-                    card.needsAnimation = false
-                }
-            }
-        }
-    }
-
-    // ==================== 抖动动画 ====================
-
     private fun startShakeAnimation() {
+        KLog.d(TAG, "startShakeAnimation: called, enabled=${config.shakeEnabled}, interval=${config.shakeInterval}, lastEditingState=$lastEditingState")
         if (!config.shakeEnabled) return
         stopShakeAnimation()
         shakeDirection = 1
@@ -700,244 +596,336 @@ class WidgetGridView : ComposeView<WidgetGridAttr, WidgetGridEvent>() {
     }
 
     private fun stopShakeAnimation() {
+        KLog.d(TAG, "stopShakeAnimation: called, shakeTimerRef=$shakeTimerRef")
         shakeTimerRef?.let { clearTimeout(it) }
         shakeTimerRef = null
-        cardList.forEach { card ->
-            card.shakeAngle = 0f
-            card.shakeKey++
+        cardList.forEach { c ->
+            val oldKey = c.shakeKey
+            c.shakeAngle = 0f
+            c.shakeKey++
+            KLog.d(TAG, "stopShakeAnimation: card ${c.id} shakeKey $oldKey -> ${c.shakeKey}")
         }
     }
 
     private fun scheduleNextShake() {
+        KLog.d(TAG, "scheduleNextShake: scheduling, interval=${config.shakeInterval}, lastEditingState=$lastEditingState")
         shakeTimerRef = setTimeout(config.shakeInterval) {
+            KLog.d(TAG, "scheduleNextShake: timer fired, lastEditingState=$lastEditingState")
+            if (!lastEditingState) {
+                KLog.d(TAG, "scheduleNextShake: editing ended, skip")
+                return@setTimeout
+            }
             shakeDirection = -shakeDirection
             val angle = config.shakeAngleBase * shakeDirection
-
             cardList.forEachIndexed { index, card ->
                 if (!card.isDragging) {
                     val offset = if (index % 2 == 0) config.shakeAngleOffset else -config.shakeAngleOffset
-                    card.shakeAngle = angle + offset
+                    val newAngle = angle + offset
+                    val oldKey = card.shakeKey
+                    card.shakeAngle = newAngle
                     card.shakeKey++
+                    KLog.d(TAG, "scheduleNextShake: card ${card.id} isDragging=${card.isDragging}, needsAnimation=${card.needsAnimation}, oldShakeKey=$oldKey, newShakeKey=${card.shakeKey}, newAngle=$newAngle")
+                } else {
+                    KLog.d(TAG, "scheduleNextShake: card ${card.id} isDragging=true, skip")
                 }
             }
+            if (lastEditingState) scheduleNextShake()
+        }
+    }
+    private fun startDraggingFromTouch(cardData: WidgetGridItemData, startX: Float, startY: Float) {
+        val visualIndex = visualOrder.indexOf(cardList.indexOf(cardData))
+        if (visualIndex < 0) return
+        isDragging = true
+        dragCardData = cardData
+        dragStartX = startX
+        dragStartY = startY
+        lastTargetVisualIndex = visualIndex
+        dragStartVisualIndex = visualIndex
+        cardData.isDragging = true
+        cardData.needsAnimation = false
+        cardData.shakeAngle = 0f
+        cardData.shakeKey++
+        // 停止抖动动画
+        stopShakeAnimation()
+        // 通知外部拖拽开始（用于禁用 Scroller 滚动）
+        event.fireDragStateChanged(true)
+    }
 
-            if (lastEditingState) {
-                scheduleNextShake()
+    private fun updateDragFromTouch(cardData: WidgetGridItemData, deltaX: Float, deltaY: Float) {
+        if (!isDragging || dragCardData != cardData) return
+        cardData.offsetX = deltaX
+        cardData.offsetY = deltaY
+
+        val currentVisualIndex = visualOrder.indexOf(cardList.indexOf(cardData))
+        if (currentVisualIndex < 0) return
+
+        val targetVisualIndex = findTargetVisualIndex(cardData, currentVisualIndex, deltaX, deltaY)
+        if (targetVisualIndex != lastTargetVisualIndex) {
+            lastTargetVisualIndex = targetVisualIndex
+            previewReorder(currentVisualIndex, targetVisualIndex, cardData)
+        }
+    }
+
+    private fun endDraggingFromTouch(cardData: WidgetGridItemData) {
+        if (!isDragging || dragCardData != cardData) {
+            resetDragState()
+            return
+        }
+
+        val targetVisualIndex = lastTargetVisualIndex
+        val startVisIdx = dragStartVisualIndex
+
+        if (startVisIdx < 0 || startVisIdx >= visualOrder.size) {
+            resetDragState()
+            return
+        }
+
+        // 停止抖动
+        stopShakeAnimation()
+
+        // 记录旧位置用于动画
+        val oldVisualPositions = cardList.associateWith { card ->
+            GridPosition(
+                x = card.pos.x + card.offsetX,
+                y = card.pos.y + card.offsetY,
+                row = card.pos.row,
+                col = card.pos.col
+            )
+        }
+
+        cardList.forEach { c ->
+            c.isDragging = false
+            c.shakeAngle = 0f
+            c.shakeKey++
+        }
+
+        if (targetVisualIndex != startVisIdx && targetVisualIndex in 0 until visualOrder.size) {
+            // 更新视觉顺序
+            val newOrder = visualOrder.toMutableList()
+            val movedOriginalIndex = newOrder.removeAt(startVisIdx)
+            newOrder.add(targetVisualIndex, movedOriginalIndex)
+            visualOrder = newOrder
+
+            // 重新计算基准位置
+            updateAllPositionsBase()
+
+            // 应用平滑过渡动画
+            applySmoothTransition(dragCardData!!, oldVisualPositions)
+
+            // 触发重排事件
+            event.fireReorder(startVisIdx, targetVisualIndex)
+
+            // 延迟恢复抖动
+            resumeShakeTimerRef = setTimeout((config.dragAnimationDuration * 1000).toInt() + 100) {
+                if (lastEditingState && config.shakeEnabled) startShakeAnimation()
+            }
+        } else {
+            // 未移动，回弹
+            KLog.d(TAG, "endDraggingFromTouch: 未移动分支，准备回弹")
+            dragCardData?.apply {
+                offsetX = 0f
+                offsetY = 0f
+                needsAnimation = true
+                animationKey++
+                KLog.d(TAG, "endDraggingFromTouch: 复位拖拽卡片 id=${id}")
+            }
+
+            // 延迟清除 needsAnimation，延迟时间与回弹动画时长匹配
+            dragCardData?.animCleanupTimer = setTimeout((config.dragAnimationDuration * 1000).toInt() + 50) {
+                dragCardData?.needsAnimation = false
+                if (lastEditingState && config.shakeEnabled) {
+                    startShakeAnimation()
+                }
             }
         }
+        resetDragState()
+        event.fireDragStateChanged(false)
     }
 
-    // ==================== 编辑态管理 ====================
-
+    private fun resetDragState() {
+        isDragging = false
+        dragCardData = null
+        lastTargetVisualIndex = -1
+        dragStartVisualIndex = -1
+        // 清理长按定时器
+        longPressTimer?.let { clearTimeout(it) }
+        longPressTimer = null
+    }
     private fun setEditingInternal(editing: Boolean) {
-        if (lastEditingState == editing) return
+        KLog.d(TAG, "setEditingInternal: old=$lastEditingState, new=$editing")
+        if (lastEditingState == editing) {
+            KLog.d(TAG, "setEditingInternal: 状态未变化，返回")
+            return
+        }
         lastEditingState = editing
-        if (editing) startShakeAnimation() else stopShakeAnimation()
-    }
-
-    private fun onCardLongPress() {
-        if (!lastEditingState) {
-            setEditingInternal(true)
-            event.fireEditingChanged(true)
+        if (editing) {
+            KLog.d(TAG, "setEditingInternal: 进入编辑态，启动抖动")
+            startShakeAnimation()
+        } else {
+            KLog.d(TAG, "setEditingInternal: 退出编辑态，停止抖动")
+            stopShakeAnimation()
         }
     }
-
-    // ==================== 渲染 ====================
 
     override fun body(): ViewBuilder {
         val ctx = this
         return {
-            // 根视图：负 margin 扩展 bounds 以容纳按钮溢出，确保触摸事件可达
-            attr {
-                ctx.setEditingInternal(ctx.attr.editing)
-                width(ctx.attr.gridWidth + ctx.leftOverflow + ctx.rightOverflow)
-                marginLeft(-ctx.leftOverflow)
-                marginTop(-ctx.topOverflow)
-                marginRight(-ctx.rightOverflow)
-            }
+            attr { ctx.setEditingInternal(ctx.attr.editing) }
 
-            // 网格容器（尺寸包含按钮溢出区域）
-            View {
+            View {  // 网格容器
                 attr {
-                    val totalRows = ctx.calculateTotalRows()
-                    height(totalRows * (ctx.config.cardHeight + ctx.config.cardSpacing) + ctx.topOverflow)
-                    width(ctx.attr.gridWidth + ctx.leftOverflow + ctx.rightOverflow)
+                    height(ctx.calculateTotalRows() * (ctx.config.cardHeight + ctx.config.cardSpacing))
+                    width(ctx.attr.gridWidth)
                 }
 
-                vforIndex({ ctx.cardList }) { cardData, index, _ ->
-                    // 外层包装：包含卡片主体 + 按钮溢出空间
+                vforIndex({ ctx.cardList }) { cardData, originalIndex, _ ->
                     View {
-                        // 基础定位（网格容器已通过负 margin 补偿，wrapper 直接用卡片位置）
                         attr {
-                            val currentIndex = ctx.cardList.indexOf(cardData)
-                            val pos = if (currentIndex >= 0) ctx.calculateCardPosition(currentIndex) else GridPosition(0f, 0f, 0, 0)
-                            absolutePosition(top = pos.y, left = pos.x)
-                            size(ctx.getItemWidth(cardData) + ctx.leftOverflow + ctx.rightOverflow, ctx.config.cardHeight + ctx.topOverflow)
-                            zIndex(if (cardData.isDragging) 100 else 0)
+                            absolutePosition(0f, 0f)
+                            size(ctx.getItemWidth(cardData), ctx.config.cardHeight)
+                            zIndex(if (cardData.isDragging) 50 else 0)
                         }
 
-                        // 变换和动画
+                        // ================= 动画与变换核心 =================
                         attr {
+                            // 最终渲染坐标 = 基准位置(pos) + 偏移量(offset)
+                            val renderX = cardData.pos.x + cardData.offsetX
+                            val renderY = cardData.pos.y + cardData.offsetY
+
+                            // 确定旋转角度 (仅在非拖拽且编辑态下生效)
+                            val rotateAngle = if (!cardData.isDragging && ctx.attr.editing && ctx.config.shakeEnabled) {
+                                cardData.shakeAngle
+                            } else {
+                                0f
+                            }
+
+                            // 应用变换
+                            transform(
+                                translate = Translate(0f, 0f, renderX, renderY),
+                                scale = if (cardData.isDragging) Scale(ctx.config.dragScaleRatio, ctx.config.dragScaleRatio) else Scale(1f, 1f),
+                                rotate = Rotate(rotateAngle)
+                            )
+
                             if (cardData.isDragging) {
-                                transform(
-                                    scale = Scale(ctx.config.dragScaleRatio, ctx.config.dragScaleRatio),
-                                    translate = Translate(
-                                        percentageX = 0f,
-                                        percentageY = 0f,
-                                        offsetX = cardData.offsetX,
-                                        offsetY = cardData.offsetY
-                                    )
-                                )
                                 opacity(ctx.config.dragOpacity)
                             } else {
-                                transform(
-                                    rotate = Rotate(cardData.shakeAngle),
-                                    translate = Translate(
-                                        percentageX = 0f,
-                                        percentageY = 0f,
-                                        offsetX = cardData.offsetX,
-                                        offsetY = cardData.offsetY
-                                    )
+                                opacity(1f)
+                            }
+
+                            // ================= 动画触发逻辑 =================
+                            KLog.d(TAG, "动画前状态: id=${cardData.id}, isDragging=${cardData.isDragging}, needsAnimation=${cardData.needsAnimation}, shakeKey=${cardData.shakeKey}, shakeAngle=${cardData.shakeAngle}, editing=${ctx.attr.editing}, shakeEnabled=${ctx.config.shakeEnabled}")
+                            if (cardData.needsAnimation) {
+                                KLog.d(TAG, "动画分支 A: needsAnimation=true, id=${cardData.id}, animationKey=${cardData.animationKey}, offset=(${cardData.offsetX},${cardData.offsetY})")
+                                animate(
+                                    Animation.springEaseInOut(ctx.config.dragAnimationDuration, 1f, 0f),
+                                    cardData.animationKey
                                 )
-                                if (cardData.needsAnimation) {
-                                    animate(
-                                        Animation.springEaseInOut(ctx.config.dragAnimationDuration, 1f, 0f),
-                                        cardData.animationKey
-                                    )
-                                } else if (ctx.config.shakeEnabled) {
-                                    // 读取 shakeKey 建立响应式依赖，确保角度变化时 attr 块重新求值
-                                    val shakeKeyVal = cardData.shakeKey
-                                    if (!ctx.pagerData.isIOS) {
-                                        // 非 iOS：平滑抖动动画
-                                        animate(Animation.easeInOut(ctx.config.shakeAnimationDuration), shakeKeyVal)
-                                    }
-                                    // iOS：不调用 animate()，角度直接跳变模拟抖动
-                                    // 规避 iOS hitTest 在动画期间跳过子视图检测的 bug（KRView.m）
-                                    // TODO: 框架升级修复 hitTest 后移除 isIOS 判断，统一使用 animate
+                            } else if (!cardData.isDragging && ctx.attr.editing && ctx.config.shakeEnabled) {
+                                // 读取 shakeKey 建立响应式依赖
+                                val shakeKeyVal = cardData.shakeKey
+                                KLog.d(TAG, "动画分支 B: 抖动动画, id=${cardData.id}, shakeKey=$shakeKeyVal, shakeAngle=${cardData.shakeAngle}")
+
+                                if (!pagerData.isIOS) {
+                                    animate(Animation.easeInOut(ctx.config.shakeAnimationDuration), shakeKeyVal)
                                 }
                             }
                         }
 
-                        // 卡片主体（带背景和圆角，向内缩进留出按钮空间）
+
+                        // 卡片内容（直接填充，无需偏移）
                         View {
                             attr {
-                                absolutePosition(top = ctx.topOverflow, left = ctx.leftOverflow, right = ctx.rightOverflow, bottom = 0f)
+                                absolutePosition(0f, 0f, 0f, 0f)
                                 backgroundColor(ctx.config.cardBackgroundColor)
                                 borderRadius(ctx.config.cardBorderRadius)
-                                opacity(if (cardData.isTouching && !ctx.attr.editing) 0.7f else 1f)
                             }
-
-                            // 业务自定义的卡片内容
                             ctx.attr._cardContentBuilder?.invoke(this, cardData)
                         }
 
-                        // 编辑模式下的删除按钮（左上角）
+                        // 删除按钮（绝对定位在卡片左上角）
+                        vif({ ctx.attr.editing &&cardData.id!==1}) {
+                            Image {
+                                attr {
+                                    absolutePosition(0f+ctx.config.deleteButtonOffset, 0f+ctx.config.deleteButtonOffset)
+                                    size(ctx.config.deleteButtonSize, ctx.config.deleteButtonSize)
+                                    borderRadius(ctx.config.deleteButtonSize / 2)
+                                    src("assets://common/delete.png")
+                                    zIndex(100)
+                                }
+                                event {
+                                    click {
+                                        ctx.event.fireDelete(item = cardData)
+                                    }
+                                }
+                            }
+                        }
+
+                        // 拖拽手势层
+                        // 编辑态交互层：使用 touch 事件实现长按拖拽
                         vif({ ctx.attr.editing }) {
                             View {
                                 attr {
-                                    absolutePosition(top = ctx.topOverflow - ctx.leftOverflow, left = 0f)
-                                    size(ctx.config.deleteButtonSize, ctx.config.deleteButtonSize)
-                                    if (ctx.attr._deleteButtonBuilder == null) {
-                                        backgroundColor(ctx.config.deleteButtonColor)
-                                        borderRadius(ctx.config.deleteButtonSize / 2)
-                                    }
-                                    allCenter()
+                                    absolutePositionAllZero()
+                                    zIndex(99)
+                                    backgroundColor(Color.TRANSPARENT)
                                 }
                                 event {
-                                    click {
-                                        cardData.buttonClicked = true
-                                        ctx.deleteCard(cardData)
-                                    }
-                                }
-                                if (ctx.attr._deleteButtonBuilder != null) {
-                                    ctx.attr._deleteButtonBuilder?.invoke(this, cardData)
-                                } else {
-                                    Text {
-                                        attr {
-                                            text("−")
-                                            fontSize(18f)
-                                            fontWeightBold()
-                                            color(Color.WHITE)
+                                    touchDown { touchParams ->
+                                        KLog.d(TAG,"触发touch事件")
+                                        // 清除之前的定时器
+                                        ctx.longPressTimer?.let { clearTimeout(it) }
+                                        // 记录起始点
+                                        cardData.touchDownX = touchParams.x
+                                        cardData.touchDownY = touchParams.y
+                                        cardData.touchDownPageX = touchParams.pageX
+                                        cardData.touchDownPageY = touchParams.pageY
+                                        cardData.longPressFired = false
+                                        // 启动长按定时器
+                                        ctx.longPressTimer = setTimeout(ctx.longPressDelay) {
+                                            // 长按触发，开始拖拽
+                                            if (!ctx.isDragging && !cardData.longPressFired) {
+                                                cardData.longPressFired = true
+                                                KLog.d(TAG,"触发长按开始拖拽")
+                                                ctx.startDraggingFromTouch(cardData, touchParams.pageX, touchParams.pageY)
+                                            }
+                                            ctx.longPressTimer = null
                                         }
                                     }
-                                }
-                            }
-                        }
-
-                        // 编辑模式下的尺寸切换按钮（右上角）
-                        vif({ ctx.attr.editing && ctx.config.resizeEnabled }) {
-                            View {
-                                attr {
-                                    absolutePosition(top = ctx.topOverflow - ctx.rightOverflow, right = 0f)
-                                    size(ctx.config.resizeButtonSize, ctx.config.resizeButtonSize)
-                                    if (ctx.attr._resizeButtonBuilder == null) {
-                                        backgroundColor(ctx.config.resizeButtonColor)
-                                        borderRadius(ctx.config.resizeButtonSize / 2)
-                                    }
-                                    allCenter()
-                                }
-                                event {
-                                    click {
-                                        cardData.buttonClicked = true
-                                        val newSpan = if (cardData.spanX == 1) 2 else 1
-                                        ctx.resizeCard(cardData, newSpan)
-                                    }
-                                }
-                                if (ctx.attr._resizeButtonBuilder != null) {
-                                    ctx.attr._resizeButtonBuilder?.invoke(this, cardData)
-                                } else {
-                                    Text {
-                                        attr {
-                                            text("↔")
-                                            fontSize(14f)
-                                            fontWeightBold()
-                                            color(Color.WHITE)
+                                    touchMove { touchParams ->
+                                        if (ctx.isDragging && ctx.dragCardData == cardData) {
+                                            // 已经在拖拽中，更新偏移
+                                            val deltaX = touchParams.pageX - ctx.dragStartX
+                                            val deltaY = touchParams.pageY - ctx.dragStartY
+                                            ctx.updateDragFromTouch(cardData, deltaX, deltaY)
+                                            KLog.d(TAG,"正在拖拽")
+                                        } else if (ctx.longPressTimer != null && !cardData.longPressFired) {
+                                            // 未触发长按时，检查移动距离是否超出阈值，若是则取消长按
+                                            val dx = touchParams.pageX - cardData.touchDownPageX
+                                            val dy = touchParams.pageY - cardData.touchDownPageY
+                                            if (dx * dx + dy * dy > ctx.longPressMoveThreshold * ctx.longPressMoveThreshold) {
+                                                clearTimeout(ctx.longPressTimer!!)
+                                                ctx.longPressTimer = null
+                                                KLog.d(TAG,"移动距离超过阈值取消长按")
+                                            }
                                         }
+                                        // 注意：不调用 stopPropagation，未拖拽时事件会继续传递给 Scroller 实现滚动
                                     }
-                                }
-                            }
-                        }
-
-                        // 触摸和拖拽事件
-                        event {
-                            register(EventName.TOUCH_DOWN.value) {
-                                cardData.isTouching = true
-                                cardData.wasPanned = false
-                                cardData.longPressFired = false
-                                cardData.buttonClicked = false
-                                if (!ctx.attr.editing) {
-                                    cardData.longPressCallback = setTimeout(ctx.config.longPressDelay) {
-                                        cardData.longPressFired = true
-                                        cardData.longPressCallback = null
-                                        ctx.onCardLongPress()
-                                    }
-                                }
-                            }
-                            register(EventName.TOUCH_UP.value) {
-                                cardData.isTouching = false
-                                cardData.longPressCallback?.let { callback ->
-                                    clearTimeout(callback)
-                                    cardData.longPressCallback = null
-                                }
-                                // 没有拖拽、没有触发长按、没有点击按钮 → 视为卡片点击
-                                if (!cardData.wasPanned && !cardData.longPressFired && !cardData.buttonClicked) {
-                                    ctx.event.fireCardClick(cardData)
-                                }
-                            }
-                            pan { params ->
-                                if (params.state == "start" || params.state == "move") {
-                                    cardData.wasPanned = true
-                                }
-                                if (params.state == "start") {
-                                    cardData.longPressCallback?.let { callback ->
-                                        clearTimeout(callback)
-                                        cardData.longPressCallback = null
-                                    }
-                                }
-                                if (ctx.attr.editing) {
-                                    val currentIndex = ctx.cardList.indexOf(cardData)
-                                    if (currentIndex >= 0) {
-                                        ctx.handleDrag(params, cardData, currentIndex)
+                                    touchUp { touchParams ->
+                                        KLog.d(TAG, "touchUp: card=${cardData.id}, isDragging=${ctx.isDragging}, dragCard=${ctx.dragCardData?.id}")
+                                        // 清除定时器
+                                        ctx.longPressTimer?.let { clearTimeout(it) }
+                                        ctx.longPressTimer = null
+                                        if (ctx.isDragging && ctx.dragCardData == cardData) {
+                                            // 结束拖拽
+                                            ctx.endDraggingFromTouch(cardData)
+                                            KLog.d(TAG,"结束拖拽")
+                                        }
+                                        // 重置标记
+                                        cardData.longPressFired = false
+                                        cardData.touchDownX = 0f
+                                        cardData.touchDownY = 0f
+                                        cardData.touchDownPageX = 0f
+                                        cardData.touchDownPageY = 0f
                                     }
                                 }
                             }
@@ -949,30 +937,9 @@ class WidgetGridView : ComposeView<WidgetGridAttr, WidgetGridEvent>() {
     }
 
     override fun createAttr(): WidgetGridAttr = WidgetGridAttr()
-
     override fun createEvent(): WidgetGridEvent = WidgetGridEvent()
 }
 
-// ==================== 扩展函数 ====================
-
-/**
- * 在 ViewContainer 中添加 WidgetGrid 组件
- *
- * 示例用法：
- * ```
- * WidgetGrid {
- *     attr {
- *         config = WidgetGridConfig(columnCount = 3)
- *         gridWidth = pagerData.pageViewWidth - 32f
- *         editing = isEditing
- *         cardContent { item -> ... }
- *     }
- *     event {
- *         onEditingChanged { editing -> isEditing = editing }
- *     }
- * }
- * ```
- */
 fun ViewContainer<*, *>.WidgetGrid(init: WidgetGridView.() -> Unit) {
     addChild(WidgetGridView(), init)
 }
