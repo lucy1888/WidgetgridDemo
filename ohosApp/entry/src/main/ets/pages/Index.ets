@@ -7,6 +7,7 @@ import globalNativeManager from '../kuikly/MyNativeManager';
 @Component
 struct Index {
   kuiklyViewDelegate = new KuiklyViewDelegate();
+  moduleName?: string;
   pageName?: string;
   pageData?: KRRecord;
   @State exception?: string = "";
@@ -22,6 +23,7 @@ struct Index {
   build() {
     Stack() {
       Kuikly({
+        moduleName: this.moduleName ?? '',
         pagerName: this.pageName ?? 'router',
         pagerData: this.pageData ?? {},
         delegate: this.kuiklyViewDelegate,

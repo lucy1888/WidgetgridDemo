@@ -6,6 +6,7 @@ import window from '@ohos.window';
 import { KuiklyRenderAdapterManager } from '@kuikly-open/render';
 import { LogAdapter } from '../kuikly/adapter/LogAdapter';
 import { RouterAdapter } from '../kuikly/adapter/RouterAdapter';
+import { AppKRPagViewAdapter } from '../kuikly/adapter/AppKRPagViewAdapter';
 
 export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
@@ -23,6 +24,7 @@ export default class EntryAbility extends UIAbility {
 
     KuiklyRenderAdapterManager.krLogAdapter = new LogAdapter();
     KuiklyRenderAdapterManager.krRouterAdapter = new RouterAdapter();
+    KuiklyRenderAdapterManager.krPagAdapter = new AppKRPagViewAdapter();
 
     windowStage.loadContent('pages/Index', (err, data) => {
       if (err.code) {

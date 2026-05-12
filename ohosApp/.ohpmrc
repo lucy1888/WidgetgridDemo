@@ -1,1 +1,2 @@
-registry=https://ohpm.openharmony.cn/ohpm/
+registry=https://ohpm.cnb.cool/tencent-tds/kuikly-dynamic-ohos/-/packages/,https://ohpm.openharmony.cn/ohpm/
+@tencent:registry=https://ohpm.cnb.cool/tencent-tds/kuikly-dynamic-ohos/-/packages/
