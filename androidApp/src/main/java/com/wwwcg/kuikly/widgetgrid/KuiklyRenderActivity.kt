@@ -20,6 +20,7 @@ import com.wwwcg.kuikly.widgetgrid.adapter.KRLogAdapter
 import com.wwwcg.kuikly.widgetgrid.adapter.KRRouterAdapter
 import com.wwwcg.kuikly.widgetgrid.adapter.KRThreadAdapter
 import com.wwwcg.kuikly.widgetgrid.adapter.KRUncaughtExceptionHandlerAdapter
+import com.wwwcg.kuikly.widgetgrid.adapter.PAGViewAdapter
 import com.wwwcg.kuikly.widgetgrid.module.KRBridgeModule
 import com.wwwcg.kuikly.widgetgrid.module.KRShareModule
 import org.json.JSONObject
@@ -38,7 +39,7 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
             return if (pn.isNotEmpty()) {
                 return pn
             } else {
-                "WidgetGridDemoPage"
+                "PAGPage"
             }
         }
 
@@ -135,6 +136,7 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
                 krColorParseAdapter = KRColorParserAdapter(KRApplication.application)
                 krRouterAdapter = KRRouterAdapter
                 krThreadAdapter = KRThreadAdapter()
+                krPagViewAdapter = PAGViewAdapter()
             }
         }
     }

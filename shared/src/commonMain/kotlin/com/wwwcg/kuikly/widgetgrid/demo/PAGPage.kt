@@ -1,7 +1,9 @@
 package com.wwwcg.kuikly.widgetgrid.demo
 
 import com.tencent.kuikly.core.annotations.Page
+import com.tencent.kuikly.core.base.Color
 import com.tencent.kuikly.core.base.ViewBuilder
+import com.tencent.kuikly.core.base.attr.ImageUri
 import com.tencent.kuikly.core.log.KLog
 import com.tencent.kuikly.core.pager.Pager
 import com.tencent.kuikly.core.timer.setTimeout
@@ -15,7 +17,7 @@ class PAGPage: Pager() {
             }
             PAG {
                 attr {
-                    src("blue.pag")
+                    src(ImageUri.commonAssets("blue.pag"))
                     repeatCount(0)
                     autoPlay(true)
                     setTimeout(100) {
