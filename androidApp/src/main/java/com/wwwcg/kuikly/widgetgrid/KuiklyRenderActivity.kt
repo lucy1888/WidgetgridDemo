@@ -37,9 +37,9 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
         get() {
             val pn = intent.getStringExtra(KEY_PAGE_NAME) ?: ""
             return if (pn.isNotEmpty()) {
-                return pn
+                pn
             } else {
-                "TouchEg"
+                "OpeningBannerAnimationDemoPage"
             }
         }
 
