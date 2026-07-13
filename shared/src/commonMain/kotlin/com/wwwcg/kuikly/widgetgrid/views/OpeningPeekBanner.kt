@@ -26,7 +26,7 @@ class OpeningPeekBannerView : ComposeView<OpeningPeekBannerAttr, OpeningPeekBann
 
         return {
             // 优化动画：使用更柔和的 Spring 参数 (1.0s, 0.9 阻尼)，配合透明度渐变
-            val globalAnim = Animation.springEaseOut(1.0f, 0.9f, 0f)
+            val globalAnim = Animation.springEaseOut(2f, 0.9f, 0f)
 
             // 核心逻辑：使用 statusBarHeight + 44 导航栏高度
             val topGap = ctx.pagerData.statusBarHeight + 44f
