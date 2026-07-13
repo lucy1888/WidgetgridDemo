@@ -1,6 +1,8 @@
 package com.wwwcg.kuikly.widgetgrid.demo
 
 import com.wwwcg.kuikly.widgetgrid.views.OpeningPeekBanner
+import cn.com.hzb.mobilebank.per.kuikly.views.anniversaryHome.TripleTextBanner
+import cn.com.hzb.mobilebank.per.kuikly.views.anniversaryHome.TripleBannerItem
 import com.tencent.kuikly.core.annotations.Page
 import com.tencent.kuikly.core.base.Color
 import com.tencent.kuikly.core.base.ViewBuilder
@@ -100,7 +102,108 @@ internal class OpeningBannerAnimationDemoPage : BasePager() {
                     }
                 }
 
-                // 3. 辅助说明文字
+                // 3. TripleTextBanner 测试区域
+                View {
+                    attr {
+                        marginTop(20f)
+                    }
+                    Text {
+                        attr {
+                            text("TripleTextBanner 组件测试")
+                            fontSize(14f)
+                            fontWeightBold()
+                            marginBottom(12f)
+                        }
+                    }
+                    vif({ ctx.demoKey >= 0 }) {
+                        TripleTextBanner {
+                            items.addAll(listOf(
+                                TripleBannerItem(
+                                    largeImageUrl = "",
+                                    smallImageUrl = "",
+                                    title = "理财产品优选A",
+                                    longSubtitle = "年化收益稳健增长",
+                                    shortSubtitle = "稳健增长",
+                                    subtitleColor = "0xFF3B82F6",
+                                    prdCatagory = "1",
+                                    prdCode = "test_prd_001",
+                                    rateValue = "3.85%",
+                                    rateValueColor = "0xFFE85D67",
+                                    rateName = "近一年年化",
+                                    rateNameColor = "0xff4E5969",
+                                    icon = "",
+                                    bacJumplink = ""
+                                ),
+                                TripleBannerItem(
+                                    largeImageUrl = "",
+                                    smallImageUrl = "",
+                                    title = "黄金积存计划B",
+                                    longSubtitle = "避险资产配置优选",
+                                    shortSubtitle = "避险优选",
+                                    subtitleColor = "0xFFBC6F00",
+                                    prdCatagory = "2",
+                                    prdCode = "test_prd_002",
+                                    rateValue = "¥568.50",
+                                    rateValueColor = "0xFF1D2129",
+                                    rateName = "当前金价",
+                                    rateNameColor = "0xff4E5969",
+                                    icon = "",
+                                    bacJumplink = ""
+                                ),
+                                TripleBannerItem(
+                                    largeImageUrl = "",
+                                    smallImageUrl = "",
+                                    title = "存款产品C",
+                                    longSubtitle = "保本保息安全可靠",
+                                    shortSubtitle = "安全可靠",
+                                    subtitleColor = "0xFF22C55E",
+                                    prdCatagory = "3",
+                                    prdCode = "test_prd_003",
+                                    rateValue = "2.10%",
+                                    rateValueColor = "0xFF1D2129",
+                                    rateName = "年利率",
+                                    rateNameColor = "0xff4E5969",
+                                    icon = "",
+                                    bacJumplink = ""
+                                ),
+                                TripleBannerItem(
+                                    largeImageUrl = "",
+                                    smallImageUrl = "",
+                                    title = "基金定投D",
+                                    longSubtitle = "长期定投分散风险",
+                                    shortSubtitle = "分散风险",
+                                    subtitleColor = "0xFF8B5CF6",
+                                    prdCatagory = "4",
+                                    prdCode = "test_prd_004",
+                                    rateValue = "+12.5%",
+                                    rateValueColor = "0xFFE85D67",
+                                    rateName = "近三月收益",
+                                    rateNameColor = "0xff4E5969",
+                                    icon = "",
+                                    bacJumplink = ""
+                                ),
+                                TripleBannerItem(
+                                    largeImageUrl = "",
+                                    smallImageUrl = "",
+                                    title = "保险保障E",
+                                    longSubtitle = "全面守护家人健康",
+                                    shortSubtitle = "全面守护",
+                                    subtitleColor = "0xFF06B6D4",
+                                    prdCatagory = "5",
+                                    prdCode = "test_prd_005",
+                                    rateValue = "¥100万",
+                                    rateValueColor = "0xFF1D2129",
+                                    rateName = "保障额度",
+                                    rateNameColor = "0xff4E5969",
+                                    icon = "",
+                                    bacJumplink = ""
+                                )
+                            ))
+                        }
+                    }
+                }
+
+                // 4. 辅助说明文字
                 View {
                     attr {
                         marginTop(20f)
