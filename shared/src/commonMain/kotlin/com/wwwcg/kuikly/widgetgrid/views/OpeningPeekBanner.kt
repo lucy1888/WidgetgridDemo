@@ -25,8 +25,8 @@ class OpeningPeekBannerView : ComposeView<OpeningPeekBannerAttr, OpeningPeekBann
         val ctx = this
 
         return {
-            // 统一动画：不再区分数据状态，固定使用 Spring 动画
-            val globalAnim = Animation.springEaseOut(1.2f, 0.85f, 0f)
+            // 优化动画：使用更柔和的 Spring 参数 (1.0s, 0.9 阻尼)，配合透明度渐变
+            val globalAnim = Animation.springEaseOut(1.0f, 0.9f, 0f)
 
             // 核心逻辑：使用 statusBarHeight + 44 导航栏高度
             val topGap = ctx.pagerData.statusBarHeight + 44f
@@ -48,7 +48,7 @@ class OpeningPeekBannerView : ComposeView<OpeningPeekBannerAttr, OpeningPeekBann
                     overflow(false)
                 }
 
-                // 1. 底层：内容区域 (默认图)
+                // 1. 底层：内容区域 (默认图，在大图消失后显露)
                 View {
                     attr {
                         zIndex(1)
@@ -68,7 +68,7 @@ class OpeningPeekBannerView : ComposeView<OpeningPeekBannerAttr, OpeningPeekBann
                     }
                 }
 
-                // 2. 顶层：覆盖层（开屏缩小组件）
+                // 2. 顶层：覆盖层（开屏大图，渐渐从顶部消失）
                 vif ({ !ctx.isTransitionFinished }) {
                     OpeningBanner {
                         attr {
@@ -77,12 +77,14 @@ class OpeningPeekBannerView : ComposeView<OpeningPeekBannerAttr, OpeningPeekBann
                             width(pagerData.pageViewWidth)
 
                             if (ctx.isShrinkStarted) {
-                                // 收缩状态：回到组件原始位置
-                                top(8f)
-                                height(ctx.attr.shrinkHeight)
+                                // 收缩并渐渐消失：向上平移出视野，并透明度降为 0
+                                top(-topGap - 40f) 
+                                opacity(0f)
+                                height(ctx.attr.expandHeight)
                             } else {
-                                // 展开状态：负位移置顶，高度保持 expandHeight
+                                // 展开状态
                                 top(-topGap)
+                                opacity(1f)
                                 height(ctx.attr.expandHeight)
                             }
 
