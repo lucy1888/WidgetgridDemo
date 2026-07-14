@@ -62,7 +62,7 @@ class OpeningBannerView : ComposeView<OpeningBannerAttr, OpeningBannerEvent>() {
 
         return {
             // 增加时长到 5 秒用于测试
-            val layoutAnim = Animation.springEaseOut(5f, 0.85f, 0f)
+            val layoutAnim = Animation.easeOut(5f)
 
             // 动态计算当前高度
             val targetHeight = if (ctx.isShrinked) ctx.attr.shrinkHeight else ctx.attr.expandHeight
