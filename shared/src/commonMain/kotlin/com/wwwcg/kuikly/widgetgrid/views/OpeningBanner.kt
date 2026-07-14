@@ -61,8 +61,8 @@ class OpeningBannerView : ComposeView<OpeningBannerAttr, OpeningBannerEvent>() {
         var startY = 0f
 
         return {
-            // 统一使用带有数据的 Spring 动画，确保视觉体验一致
-            val layoutAnim = Animation.springEaseOut(1.2f, 0.85f, 0f)
+            // 增加时长到 5 秒用于测试
+            val layoutAnim = Animation.springEaseOut(5f, 0.85f, 0f)
 
             // 动态计算当前高度
             val targetHeight = if (ctx.isShrinked) ctx.attr.shrinkHeight else ctx.attr.expandHeight
@@ -104,18 +104,23 @@ class OpeningBannerView : ComposeView<OpeningBannerAttr, OpeningBannerEvent>() {
                     }
 
                     // 1. 兜底 PAG
-                    PAG {
+                    View {
                         attr {
-                            src(ImageUri.commonAssets("hangxiaobao.pag"))
-                            autoPlay(true)
-                            repeatCount(-1)
-
                             width(pagerData.pageViewWidth)
                             height(ctx.attr.expandHeight)
-                            borderRadius(if (ctx.isShrinked) 8f else 0f)
-
                             opacity(if (ctx.isShrinked) 0f else 1f)
                             animate(layoutAnim, ctx.isShrinked)
+                        }
+                        PAG {
+                            attr {
+                                src(ImageUri.commonAssets("hangxiaobao.pag"))
+                                autoPlay(true)
+                                repeatCount(-1)
+
+                                width(pagerData.pageViewWidth)
+                                height(ctx.attr.expandHeight)
+                                borderRadius(if (ctx.isShrinked) 8f else 0f)
+                            }
                         }
                     }
                 }

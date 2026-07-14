@@ -25,8 +25,8 @@ class OpeningPeekBannerView : ComposeView<OpeningPeekBannerAttr, OpeningPeekBann
         val ctx = this
 
         return {
-            // 优化动画：使用更柔和的 Spring 参数 (1.0s, 0.9 阻尼)，配合透明度渐变
-            val globalAnim = Animation.springEaseOut(2f, 0.9f, 0f)
+            // 优化动画：增加时长到 5 秒用于测试，使用柔和的 Spring 参数 (5.0s, 0.9 阻尼)
+            val globalAnim = Animation.springEaseOut(5f, 0.9f, 0f)
 
             // 核心逻辑：使用 statusBarHeight + 44 导航栏高度
             val topGap = ctx.pagerData.statusBarHeight + 44f
@@ -57,6 +57,10 @@ class OpeningPeekBannerView : ComposeView<OpeningPeekBannerAttr, OpeningPeekBann
                         height(ctx.attr.shrinkHeight)
                         justifyContentCenter()
                         alignItemsCenter()
+
+                        // 新增：底层内容在收缩开始后渐显，提供平滑切换感
+                        opacity(if (ctx.isShrinkStarted) 1f else 0f)
+                        animate(globalAnim, ctx.isShrinkStarted)
                     }
                     Image {
                         attr {
@@ -70,15 +74,15 @@ class OpeningPeekBannerView : ComposeView<OpeningPeekBannerAttr, OpeningPeekBann
 
                 // 2. 顶层：覆盖层（开屏大图，渐渐从顶部消失）
                 vif ({ !ctx.isTransitionFinished }) {
-                    OpeningBanner {
+                    View {
                         attr {
                             positionType(FlexPositionType.ABSOLUTE)
                             zIndex(10)
                             width(pagerData.pageViewWidth)
 
                             if (ctx.isShrinkStarted) {
-                                // 收缩并渐渐消失：向上平移出视野，并透明度降为 0
-                                top(-topGap - 40f) 
+                                // 强化移动感：向上位移距离加大 (-40f -> -100f)，并配合透明度降为 0
+                                top(-topGap - 100f)
                                 opacity(0f)
                                 height(ctx.attr.expandHeight)
                             } else {
@@ -87,14 +91,18 @@ class OpeningPeekBannerView : ComposeView<OpeningPeekBannerAttr, OpeningPeekBann
                                 opacity(1f)
                                 height(ctx.attr.expandHeight)
                             }
-
                             animate(globalAnim, ctx.isShrinkStarted)
-                            expandHeight = ctx.attr.expandHeight
-                            shrinkHeight = ctx.attr.shrinkHeight
                         }
-                        event {
-                            register("onShrinkStarted") { ctx.isShrinkStarted = true }
-                            register("onShrinkFinished") { ctx.isTransitionFinished = true }
+                        OpeningBanner {
+                            attr {
+                                width(pagerData.pageViewWidth)
+                                expandHeight = ctx.attr.expandHeight
+                                shrinkHeight = ctx.attr.shrinkHeight
+                            }
+                            event {
+                                register("onShrinkStarted") { ctx.isShrinkStarted = true }
+                                register("onShrinkFinished") { ctx.isTransitionFinished = true }
+                            }
                         }
                     }
                 }
