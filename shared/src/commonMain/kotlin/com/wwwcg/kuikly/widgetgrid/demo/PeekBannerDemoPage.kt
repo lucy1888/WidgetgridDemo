@@ -2,6 +2,7 @@ package com.wwwcg.kuikly.widgetgrid.demo
 
 import com.tencent.kuikly.core.annotations.Page
 import com.tencent.kuikly.core.base.*
+import com.tencent.kuikly.core.manager.PagerManager
 import com.tencent.kuikly.core.module.RouterModule
 import com.tencent.kuikly.core.nvi.serialization.json.JSONObject
 import com.tencent.kuikly.core.reactive.handler.observable
@@ -17,6 +18,18 @@ data class MockBannerItem(
     val color: Color,
     val title: String
 )
+
+/**
+ * Rpx 行庆版组件的自适应像素单位
+ * ANNIVERSARY_HOME_DESIGN_WIDTH : 375f 为设计稿基准屏幕宽度进行等比缩放
+ */
+internal val Float.rpx: Float
+    get() {
+        val pager = PagerManager.getCurrentPager() as? BasePager
+        val pageViewWidth = pager?.pagerData?.pageViewWidth ?: 375f
+        return this * (pageViewWidth / 375f)
+    }
+
 
 /**
  * PeekBanner 演示页面
@@ -134,24 +147,24 @@ internal class PeekBannerDemoPage : BasePager() {
                         zIndex(1)
                         marginTop(20f)
                         width = ctx.pagerData.pageViewWidth
-                        pageItemWidth = 311f
-                        pageItemHeight = ctx.shrinkHeight
+                        pageItemWidth = 311f.rpx
+                        pageItemHeight = ctx.shrinkHeight.rpx
                         
                         loopPlayIntervalTimeMs = ctx.peekDisplayTimeMs
 
                         initSliderItems(ctx.peekBanners) { currentItem, _ ->
                             View {
                                 attr {
-                                    width(311f)
-                                    height(ctx.shrinkHeight)
+                                    width(311f.rpx)
+                                    height(ctx.shrinkHeight.rpx)
                                     padding(0f, 8f, 0f, 8f)
                                 }
                                 
                                 // 使用纯色块视图替代图片
                                 View {
                                     attr {
-                                        width(295f)
-                                        height(ctx.shrinkHeight)
+                                        width(295f.rpx)
+                                        height(ctx.shrinkHeight.rpx)
                                         backgroundColor(currentItem.color)
                                         borderRadius(8f)
                                     }
