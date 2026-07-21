@@ -39,7 +39,7 @@ class KuiklyRenderActivity : AppCompatActivity(), KuiklyRenderViewBaseDelegatorD
             return if (pn.isNotEmpty()) {
                 pn
             } else {
-                "OpeningBannerAnimationDemoPage"
+                "PeekBannerDemoPage"
             }
         }
 
